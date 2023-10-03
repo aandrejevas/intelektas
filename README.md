@@ -1,5 +1,26 @@
 # intelektas
 
+## Setup
+
+### Initial setup:
+1. Install Python 3.9.12 (might work with older versions).
+2. Change to main repository folder (`cd intelektas`)
+3. `py -m venv .venv`
+4. `.venv\Scripts\activate.ps1`
+5. `pip install -r requirements.txt`
+6. To run code: `py main.py` or `py FILENAME.py`
+
+### Run each time after pulling changes:
+1. `.venv\Scripts\activate.ps1`
+2. `pip install -r requirements.txt`
+3. To run code: `py main.py` or `py FILENAME.py`
+
+### If new packages are installed via pip install:
+1. `pip freeze > requirements.txt` to save required package versions.
+
+### To leave virtual environment:
+1. `deactivate`
+
 ## Užduotys (trumpai)
 
 1. Surasti paveikslėlius (figures), lenteles (tables), intarpus (inserts) (paveikslėlių/lentelių rinkinys be antraštės)
