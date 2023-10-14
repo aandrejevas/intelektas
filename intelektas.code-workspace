@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"python.defaultInterpreterPath": "./venv/Scripts/python",
+		"python.terminal.activateEnvironment": true,
+		"python.terminal.executeInFileDir": true,
+		"python.terminal.activateEnvInCurrentTerminal": true,
+	}
+}
