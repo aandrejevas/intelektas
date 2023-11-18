@@ -3,6 +3,11 @@
 
 # Remove outputs from commits
 out
+out_scanned
+
+# Remove scanned and ocred pdf folders
+scanned_pdfs
+ocr_pdfs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
