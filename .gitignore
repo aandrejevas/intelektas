@@ -5,9 +5,10 @@
 out
 out_scanned
 
-# Remove scanned and ocred pdf folders
+# Remove modified pdf folders
 scanned_pdfs
 ocr_pdfs
+region_pdfs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,11 +1,8 @@
+import json
 import fitz
 import os
 import ocrmypdf
 import scipdf
-from PIL import Image, ImageOps
-import cv2
-import matplotlib.pyplot as plt
-import numpy as np
 import data_processing.data_processing as dp
 
 PDFS_PATH = "pdfs"
@@ -13,7 +10,9 @@ SCANNED_PDFS_PATH = "scanned_pdfs"
 OCR_PDFS_PATH = "ocr_pdfs"
 OUT_PATH = "out"
 OUT_FIGURES_PATH = f"{OUT_PATH}/figures"
+OUT_DATA_PATH = f"{OUT_PATH}/data"
 PROCESSED_FIGURES_PATH = f"{OUT_PATH}/processed_figures"
+PDFS_WITH_REGIONS = f"region_pdfs"
 
 
 # Converts normal pdf to "scanned" pdf (each page is an image)
@@ -44,6 +43,8 @@ def create_scanned_pdfs(input_path, scanned_pdf_path, dpi=200):
                     pdf_to_scanned_pdf(
                         f"{input_path}/{file}", f"{scanned_pdf_path}/{file}", dpi
                     )
+                else:
+                    print(f"Scanned pdf already created from {file}")
 
 
 # Run OCR on scanned pdfs in a folder
@@ -54,6 +55,8 @@ def ocr_scanned_pdfs(scanned_pdf_path, ocr_pdf_path):
                 if not os.path.exists(f"{ocr_pdf_path}/{file}"):
                     print(f"Running OCR on {file}")
                     ocrmypdf.ocr(f"{scanned_pdf_path}/{file}", f"{ocr_pdf_path}/{file}")
+                else:
+                    print(f"OCR already run on {file}")
 
 
 # Creates paths if they don't exist
@@ -79,24 +82,71 @@ def detect(input_path, output_path):
                 print(f"Graphic elements already detected in {file}")
 
 
-def process_figures(input_path, output_path, padding, max_cropped_bottom):
-    if not os.path.isdir(input_path):
-        print("Input path is not a directory. Returning.")
-        return
-
+# Cuts image from bottom, crops to bounding box, adds padding and saves image
+def process_figures(figure_path, data_path, output_path, padding, max_cropped_bottom):
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
-    for file in os.listdir(input_path):
+    for file in os.listdir(figure_path):
         if file.endswith(".png"):
+            pdf_name = file.split("-")[0]
             if not os.path.exists(f"{output_path}/{file}"):
                 print(f"Processing {file}")
                 dp.crop_and_save(
-                    f"{input_path}/{file}",
+                    f"{figure_path}/{file}",
+                    f"{data_path}/{pdf_name}.json",
                     f"{output_path}/{file}",
                     padding=padding,
                     max_cropped_bottom=max_cropped_bottom,
                 )
+            else:
+                print(f"{file} already processed")
+
+
+# Draws region boundaries on pdfs
+def draw_region_boundaries(pdf_path, json_path, pdf_out_path):
+    if not os.path.exists(pdf_out_path):
+        os.mkdir(pdf_out_path)
+    if not os.path.exists(pdf_path):
+        os.mkdir(pdf_path)
+    if not os.path.exists(json_path):
+        os.mkdir(json_path)
+
+    for file in os.listdir(pdf_path):
+        if file.endswith(".pdf"):
+            if not os.path.exists(f"{pdf_out_path}/{file}"):
+                print(f"Drawing region boundaries on {file}")
+
+                curr_file_path = f"{pdf_path}/{file}"
+                curr_json_path = f"{json_path}/{file.split('.')[0]}.json"
+
+                pdf_document = fitz.open(curr_file_path)
+                with open(curr_json_path, "r") as json_file:
+                    data = json.load(json_file)
+
+                for page_number in range(pdf_document.page_count):
+                    page = pdf_document.load_page(page_number)
+                    boundaries_per_page = [
+                        boundary["regionBoundary"]
+                        for boundary in data
+                        if boundary["page"] == page_number
+                    ]
+
+                    for boundary in boundaries_per_page:
+                        rect = fitz.Rect(
+                            boundary["x1"],
+                            boundary["y1"],
+                            boundary["x2"],
+                            boundary["y2"],
+                        )
+
+                        annot = page.add_rect_annot(rect)
+                        annot.set_border(fitz.utils.getColor("black"), width=2)
+
+                pdf_document.save(f"{pdf_out_path}/{file}")
+                pdf_document.close()
+            else:
+                print(f"Region boundaries already drawn on {file}")
 
 
 # import scipdf
@@ -109,7 +159,14 @@ def process_figures(input_path, output_path, padding, max_cropped_bottom):
 
 if __name__ == "__main__":
     create_paths(
-        [PDFS_PATH, SCANNED_PDFS_PATH, OCR_PDFS_PATH, OUT_PATH, OUT_FIGURES_PATH]
+        [
+            PDFS_PATH,
+            SCANNED_PDFS_PATH,
+            OCR_PDFS_PATH,
+            OUT_PATH,
+            OUT_FIGURES_PATH,
+            PDFS_WITH_REGIONS,
+        ]
     )
 
     create_scanned_pdfs(PDFS_PATH, SCANNED_PDFS_PATH, dpi=200)
@@ -120,7 +177,10 @@ if __name__ == "__main__":
 
     process_figures(
         OUT_FIGURES_PATH,
+        OUT_DATA_PATH,
         PROCESSED_FIGURES_PATH,
         padding=10,
         max_cropped_bottom=0.1,
     )
+
+    draw_region_boundaries(OCR_PDFS_PATH, OUT_DATA_PATH, PDFS_WITH_REGIONS)
