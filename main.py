@@ -4,6 +4,7 @@ import os
 import ocrmypdf
 import scipdf
 import data_processing.data_processing as dp
+import re
 
 PDFS_PATH = "pdfs"
 SCANNED_PDFS_PATH = "scanned_pdfs"
@@ -71,11 +72,19 @@ def detect(input_path, output_path):
     if not os.path.isdir(input_path):
         os.mkdir(input_path)
 
+    figures = os.listdir(OUT_FIGURES_PATH)
+    # creates a list of unique figure names
+    unique_figures = set()
+    pattern = r"-(Figure|Table)([IVXLCDM\d]*)-\d+\.png$"
+    for file_name in figures:
+        match = re.search(pattern, file_name)
+        if match:
+            # If the pattern is found, remove it and add to the set
+            unique_figures.add(re.sub(pattern, "", file_name))
+
     for file in os.listdir(input_path):
         if file.endswith(".pdf"):
-            figures = os.listdir(OUT_FIGURES_PATH)
-            figures = [fig.split("-")[0] for fig in figures]
-            if file.split(".")[0] not in figures:
+            if file.split(".")[0] not in unique_figures:
                 print(f"Detecting graphic elements in {file}")
                 scipdf.parse_figures(f"{input_path}/{file}", output_folder=output_path)
             else:
@@ -83,13 +92,16 @@ def detect(input_path, output_path):
 
 
 # Cuts image from bottom, crops to bounding box, adds padding and saves image
-def process_figures(figure_path, data_path, output_path, padding, max_cropped_bottom):
+def process_figures(
+    figure_path, data_path, output_path, padding, max_crop, ignore_first
+):
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
+    pattern = r"-(Figure|Table)([IVXLCDM\d]*)-\d+\.png$"
     for file in os.listdir(figure_path):
         if file.endswith(".png"):
-            pdf_name = file.split("-")[0]
+            pdf_name = re.sub(pattern, "", file)
             if not os.path.exists(f"{output_path}/{file}"):
                 print(f"Processing {file}")
                 dp.crop_and_save(
@@ -97,7 +109,8 @@ def process_figures(figure_path, data_path, output_path, padding, max_cropped_bo
                     f"{data_path}/{pdf_name}.json",
                     f"{output_path}/{file}",
                     padding=padding,
-                    max_cropped_bottom=max_cropped_bottom,
+                    max_crop=max_crop,
+                    ignore_first=ignore_first,
                 )
             else:
                 print(f"{file} already processed")
@@ -180,7 +193,8 @@ if __name__ == "__main__":
         OUT_DATA_PATH,
         PROCESSED_FIGURES_PATH,
         padding=10,
-        max_cropped_bottom=0.1,
+        max_crop=0.1,
+        ignore_first=5,
     )
 
     draw_region_boundaries(OCR_PDFS_PATH, OUT_DATA_PATH, PDFS_WITH_REGIONS)
