@@ -5,6 +5,8 @@ import ocrmypdf
 import scipdf
 import data_processing.data_processing as dp
 import re
+from data_processing.output import OutputXML, process_json_files
+from xml.etree.ElementTree import ElementTree
 
 PDFS_PATH = "pdfs"
 SCANNED_PDFS_PATH = "scanned_pdfs"
@@ -117,13 +119,13 @@ def process_figures(
 
 
 # Draws region boundaries on pdfs
-def draw_region_boundaries(pdf_path, json_path, pdf_out_path):
+def draw_region_boundaries(pdf_path, xml_path, pdf_out_path):
     if not os.path.exists(pdf_out_path):
         os.mkdir(pdf_out_path)
     if not os.path.exists(pdf_path):
         os.mkdir(pdf_path)
-    if not os.path.exists(json_path):
-        os.mkdir(json_path)
+    if not os.path.exists(xml_path):
+        os.mkdir(xml_path)
 
     for file in os.listdir(pdf_path):
         if file.endswith(".pdf"):
@@ -131,30 +133,56 @@ def draw_region_boundaries(pdf_path, json_path, pdf_out_path):
                 print(f"Drawing region boundaries on {file}")
 
                 curr_file_path = f"{pdf_path}/{file}"
-                curr_json_path = f"{json_path}/{file.split('.')[0]}.json"
+                curr_xml_path = f"{xml_path}/{file.split('.')[0]}.xml"
 
                 pdf_document = fitz.open(curr_file_path)
-                with open(curr_json_path, "r") as json_file:
-                    data = json.load(json_file)
 
-                for page_number in range(pdf_document.page_count):
-                    page = pdf_document.load_page(page_number)
-                    boundaries_per_page = [
-                        boundary["regionBoundary"]
-                        for boundary in data
-                        if boundary["page"] == page_number
-                    ]
+                tree = ElementTree()
+                tree.parse(curr_xml_path)
+                root = tree.getroot()
 
-                    for boundary in boundaries_per_page:
-                        rect = fitz.Rect(
-                            boundary["x1"],
-                            boundary["y1"],
-                            boundary["x2"],
-                            boundary["y2"],
-                        )
+                for page_element in root.findall(".//element"):
+                    page_number = int(
+                        page_element.get("source_page")
+                    )  # Adjust for zero-based indexing
+                    if 0 <= page_number < pdf_document.page_count:
+                        page = pdf_document.load_page(page_number)
 
-                        annot = page.add_rect_annot(rect)
-                        annot.set_border(fitz.utils.getColor("black"), width=2)
+                        x1 = float(page_element.get("x1"))
+                        y1 = float(page_element.get("y1"))
+                        x2 = float(page_element.get("x2"))
+                        y2 = float(page_element.get("y2"))
+
+                        rect = fitz.Rect(x1, y1, x2, y2)
+
+                        # Determine the type and set the border color accordingly
+                        element_type = page_element.get("type", "")
+                        if element_type == "t":  # Table
+                            annot = page.add_rect_annot(rect)
+                            annot.set_colors(colors={"stroke": (0, 0, 1)})
+                            annot.update()
+                        elif element_type == "f":  # Figure
+                            annot = page.add_rect_annot(rect)
+                            annot.set_colors(colors={"stroke": (0, 1, 0)})
+                            annot.update()
+
+                        # Add label to top-left corner
+                        target_name = page_element.get("target_name", "")
+                        if target_name:
+                            text_length = fitz.get_text_length(
+                                target_name, fontname="Times-Roman", fontsize=8
+                            )
+                            text_rect = fitz.Rect(
+                                x1, y1 - 8 - 5, x1 + text_length + 5, y1
+                            )
+                            page.draw_rect(text_rect, color=(0, 0, 0), fill=(1, 1, 1))
+                            rc = page.insert_textbox(
+                                text_rect,
+                                target_name,
+                                fontsize=8,
+                                fontname="Times-Roman",
+                                align=1,
+                            )
 
                 pdf_document.save(f"{pdf_out_path}/{file}")
                 pdf_document.close()
@@ -196,5 +224,7 @@ if __name__ == "__main__":
         max_crop=0.1,
         ignore_first=5,
     )
+
+    process_json_files(OUT_DATA_PATH)
 
     draw_region_boundaries(OCR_PDFS_PATH, OUT_DATA_PATH, PDFS_WITH_REGIONS)
