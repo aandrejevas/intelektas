@@ -146,7 +146,7 @@ def draw_region_boundaries(pdf_path, xml_path, pdf_out_path):
                         page_element.get("source_page")
                     )  # Adjust for zero-based indexing
                     if 0 <= page_number < pdf_document.page_count:
-                        page = pdf_document.load_page(page_number)
+                        page = pdf_document.load_page(page_number - 1)
 
                         x1 = float(page_element.get("x1"))
                         y1 = float(page_element.get("y1"))

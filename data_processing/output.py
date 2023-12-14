@@ -26,7 +26,7 @@ def convert_to_xml(json_data, general_counter, total_figures, total_tables):
 
     for entry in sorted_json_data:
         element = SubElement(root, "element")
-        element.set("source_page", str(entry["page"]))
+        element.set("source_page", str(entry["page"] + 1))
 
         # Convert Roman numerals to normal numbers
         try:
