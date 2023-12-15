@@ -1,12 +1,14 @@
-import json
 import fitz
 import os
 import ocrmypdf
 import scipdf
 import data_processing.data_processing as dp
 import re
-from data_processing.output import OutputXML, process_json_files
+import face_recognition
+import numpy as np
+from data_processing.output import process_json_files
 from xml.etree.ElementTree import ElementTree
+from PIL import Image
 
 PDFS_PATH = "pdfs"
 SCANNED_PDFS_PATH = "scanned_pdfs"
@@ -118,6 +120,12 @@ def process_figures(
                 print(f"{file} already processed")
 
 
+def detect_faces(img):
+    image = np.array(img)
+    face_locations = face_recognition.face_locations(image)
+    return len(face_locations)
+
+
 # Draws region boundaries on pdfs
 def draw_region_boundaries(pdf_path, xml_path, pdf_out_path):
     if not os.path.exists(pdf_out_path):
@@ -155,9 +163,18 @@ def draw_region_boundaries(pdf_path, xml_path, pdf_out_path):
 
                         rect = fitz.Rect(x1, y1, x2, y2)
 
+                        clip = page.get_pixmap(clip=rect)
+                        img = Image.frombytes("RGB", [clip.width, clip.height], clip.samples)
+                        faces_num = detect_faces(img)
+
                         # Determine the type and set the border color accordingly
                         element_type = page_element.get("type", "")
-                        if element_type == "t":  # Table
+                        if faces_num > 0:
+                            page_element.set("type", 'p')
+                            annot = page.add_rect_annot(rect)
+                            annot.set_colors(colors={"stroke": (1, 0, 0)})
+                            annot.update()
+                        elif element_type == "t":  # Table
                             annot = page.add_rect_annot(rect)
                             annot.set_colors(colors={"stroke": (0, 0, 1)})
                             annot.update()
@@ -183,7 +200,7 @@ def draw_region_boundaries(pdf_path, xml_path, pdf_out_path):
                                 fontname="Times-Roman",
                                 align=1,
                             )
-
+                tree.write(curr_xml_path)
                 pdf_document.save(f"{pdf_out_path}/{file}")
                 pdf_document.close()
             else:
